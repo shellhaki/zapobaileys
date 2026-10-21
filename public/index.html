@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pair WhatsApp</title>
+  <style>
+    :root { --bg: #0b0d0c; --card: #141816; --text: #e8ece9; --muted: #8b958f; --accent: #25d366; --line: #232a26; }
+    @media (prefers-color-scheme: light) { :root { --bg: #f4f6f5; --card: #fff; --text: #111614; --muted: #5d6762; --line: #e1e6e3; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, sans-serif; padding: 16px; }
+    main { width: 100%; max-width: 420px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 28px; }
+    h1 { margin: 0 0 4px; font-size: 22px; }
+    p { margin: 0 0 16px; color: var(--muted); }
+    .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 18px; }
+    button { font: inherit; border: 1px solid var(--line); background: transparent; color: var(--text); border-radius: 10px; padding: 10px; cursor: pointer; }
+    button.active, button.primary { background: var(--accent); border-color: var(--accent); color: #062b14; font-weight: 600; }
+    input { width: 100%; font: inherit; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--text); margin-bottom: 10px; }
+    #qr svg { width: 100%; height: auto; background: #fff; border-radius: 12px; padding: 8px; }
+    .code { font: 600 28px/1 ui-monospace, monospace; letter-spacing: 4px; text-align: center; padding: 18px; border: 1px dashed var(--line); border-radius: 12px; }
+    .session { font: 13px/1.4 ui-monospace, monospace; word-break: break-all; padding: 12px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 10px; }
+    .hidden { display: none; }
+    .status { font-size: 14px; margin-top: 12px; color: var(--muted); }
+    .error { color: #f25c54; }
+    .full { width: 100%; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Link WhatsApp</h1>
+    <p>Get a session ID for your Baileys bot.</p>
+
+    <div class="tabs">
+      <button id="tab-qr" class="active">QR code</button>
+      <button id="tab-code">Pairing code</button>
+    </div>
+
+    <section id="start">
+      <input id="phone" class="hidden" inputmode="numeric" placeholder="Number with country code, e.g. 2348012345678">
+      <button id="go" class="primary full">Start</button>
+    </section>
+
+    <section id="qr" class="hidden"></section>
+    <section id="code" class="hidden"></section>
+
+    <section id="done" class="hidden">
+      <p>Linked <strong id="phone-done"></strong>. The session ID was also sent to your own WhatsApp chat.</p>
+      <div id="session" class="session"></div>
+      <button id="copy" class="primary full">Copy session ID</button>
+    </section>
+
+    <div id="status" class="status"></div>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let method = "qr";
+
+    function show(id) {
+      for (const section of ["start", "qr", "code", "done"]) $(section).classList.toggle("hidden", section !== id);
+    }
+
+    function status(text, isError = false) {
+      $("status").textContent = text;
+      $("status").classList.toggle("error", isError);
+    }
+
+    function pick(next) {
+      method = next;
+      $("tab-qr").classList.toggle("active", next === "qr");
+      $("tab-code").classList.toggle("active", next === "code");
+      $("phone").classList.toggle("hidden", next !== "code");
+      show("start");
+      status("");
+    }
+
+    $("tab-qr").onclick = () => pick("qr");
+    $("tab-code").onclick = () => pick("code");
+
+    $("go").onclick = async () => {
+      status("Starting…");
+      const response = await fetch("/api/pair", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ method, phone: $("phone").value }),
+      });
+      const body = await response.json();
+      if (!response.ok) return status(body.error, true);
+      listen(body.id);
+    };
+
+    function listen(id) {
+      const events = new EventSource(`/api/pair/${id}/events`);
+      events.onmessage = (message) => {
+        const event = JSON.parse(message.data);
+        if (event.type === "qr") {
+          $("qr").innerHTML = event.svg;
+          show("qr");
+          status("WhatsApp → Linked devices → Link a device, then scan.");
+        } else if (event.type === "code") {
+          $("code").innerHTML = `<div class="code">${event.code}</div>`;
+          show("code");
+          status("WhatsApp → Linked devices → Link with phone number instead, then enter this code.");
+        } else if (event.type === "scanned") {
+          status("Linked. Saving your session…");
+        } else if (event.type === "success") {
+          events.close();
+          $("session").textContent = event.sessionId;
+          $("phone-done").textContent = event.phone;
+          show("done");
+          status("Keep it secret: anyone with it can use this WhatsApp account.");
+        } else if (event.type === "error") {
+          events.close();
+          show("start");
+          status(event.message, true);
+        }
+      };
+    }
+
+    $("copy").onclick = async () => {
+      await navigator.clipboard.writeText($("session").textContent);
+      $("copy").textContent = "Copied";
+    };
+  </script>
+</body>
+</html>

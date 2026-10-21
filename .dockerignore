@@ -1,0 +1,8 @@
+node_modules
+restore
+tests
+examples
+data
+.env
+.git
+example-bot

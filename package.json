@@ -1,0 +1,31 @@
+{
+  "name": "pair-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@zapo-js/store-sqlite": "^1.3.0",
+    "hono": "^4.13.13",
+    "qrcode": "^1.5.4",
+    "zapo-js": "^1.10.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.3",
+    "@types/qrcode": "^1.5.6",
+    "@zapo-js/fake-server": "^1.3.0",
+    "baileys": "^7.0.0-rc14",
+    "baileys6": "npm:baileys@6.7.24",
+    "typescript": "^7.0.2"
+  },
+  "description": "Pair WhatsApp with zapo, get a session ID that any Baileys bot restores in one request",
+  "license": "MIT",
+  "scripts": {
+    "start": "bun src/server.ts",
+    "dev": "bun --watch src/server.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "bun": ">=1.3"
+  }
+}
